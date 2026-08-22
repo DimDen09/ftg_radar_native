@@ -14,7 +14,7 @@ Ajoutez cette dépendance Git dans les dépendances du Custom Widget `FTGSession
 ftg_radar_native:
   git:
     url: https://github.com/DimDen09/ftg_radar_native.git
-    ref: main
+    ref: 54c80dc7b0ce1d592e84b591631bcb4b91f69857
 ```
 
 Le manifest du plugin fusionne automatiquement le service et les permissions Android nécessaires. Sur iOS, le host doit déclarer les descriptions de permission et `UIBackgroundModes/location`. Sur les deux plateformes, le parcours FTG doit obtenir l'autorisation de localisation « toujours autoriser » avant d'appeler le plugin.
