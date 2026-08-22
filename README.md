@@ -1,8 +1,10 @@
 # ftg_radar_native
 
-Plugin Flutter natif de Food Truck Galaxy pour maintenir le Radar utilisateur actif en arrière-plan sur Android.
+Plugin Flutter natif de Food Truck Galaxy pour maintenir le Radar utilisateur actif en arrière-plan sur Android et iOS.
 
-Le plugin démarre un service de localisation Android au premier plan, affiche une notification persistante, transmet les positions à l'endpoint FTG en HTTPS et survit à la fermeture de l'interface depuis les applications récentes. Android reste libre d'arrêter une application forcée depuis les réglages ou soumise à une politique d'économie d'énergie du constructeur.
+Sur Android, le plugin démarre un service de localisation au premier plan, affiche une notification persistante, transmet les positions à l'endpoint FTG en HTTPS et survit à la fermeture de l'interface depuis les applications récentes. Android reste libre d'arrêter une application forcée depuis les réglages ou soumise à une politique d'économie d'énergie du constructeur.
+
+Sur iOS, le plugin utilise Core Location avec le mode d'arrière-plan `location`. Le suivi continue lorsque l'application passe en arrière-plan, mais Apple ne garantit pas sa relance après une fermeture forcée par l'utilisateur.
 
 ## Installation FlutterFlow
 
@@ -15,7 +17,7 @@ ftg_radar_native:
     ref: main
 ```
 
-Le manifest du plugin fusionne automatiquement le service et les permissions Android nécessaires. Le parcours FTG doit obtenir l'autorisation de localisation « toujours autoriser » avant d'appeler le plugin.
+Le manifest du plugin fusionne automatiquement le service et les permissions Android nécessaires. Sur iOS, le host doit déclarer les descriptions de permission et `UIBackgroundModes/location`. Sur les deux plateformes, le parcours FTG doit obtenir l'autorisation de localisation « toujours autoriser » avant d'appeler le plugin.
 
 ```dart
 final result = await FtgRadarNative.startRadar(
@@ -41,5 +43,4 @@ La procédure FTG complète est décrite dans [docs/FLUTTERFLOW.md](docs/FLUTTER
 
 ## Vérification
 
-Le workflow GitHub Actions exécute l'analyse Dart, les tests Flutter, les tests Kotlin et un vrai build APK Android. L'APK de démonstration est publié comme artefact du workflow.
-
+Les workflows GitHub Actions exécutent l'analyse Dart, les tests Flutter, les tests Kotlin, un vrai build APK Android et un vrai build iOS pour simulateur sans signature. Les applications de démonstration sont publiées comme artefacts.

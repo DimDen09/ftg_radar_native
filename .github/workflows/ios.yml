@@ -1,4 +1,4 @@
-name: Android
+name: iOS
 
 on:
   push:
@@ -11,19 +11,12 @@ permissions:
 
 jobs:
   test-and-build:
-    runs-on: ubuntu-latest
+    runs-on: macos-15
     timeout-minutes: 30
 
     steps:
       - name: Checkout
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-
-      - name: Set up Java
-        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
-        with:
-          distribution: temurin
-          java-version: '17'
-          cache: gradle
 
       - name: Set up Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
@@ -56,18 +49,14 @@ jobs:
         working-directory: example
         run: flutter test
 
-      - name: Test Android native code
-        working-directory: example/android
-        run: ./gradlew :ftg_radar_native:testDebugUnitTest --stacktrace
-
-      - name: Build Android APK
+      - name: Build iOS simulator app
         working-directory: example
-        run: flutter build apk --debug
+        run: flutter build ios --simulator --debug
 
-      - name: Publish Android APK
+      - name: Publish iOS simulator app
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: ftg-radar-native-android-debug
-          path: example/build/app/outputs/flutter-apk/app-debug.apk
+          name: ftg-radar-native-ios-simulator
+          path: example/build/ios/iphonesimulator/Runner.app
           if-no-files-found: error
           retention-days: 14

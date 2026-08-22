@@ -19,7 +19,22 @@ import 'package:ftg_radar_native/ftg_radar_native.dart';
 
 Le code Kotlin et le manifest sont fournis par le plugin. Il ne faut pas copier `RadarLocationService.kt` dans le projet FlutterFlow ni modifier `MainActivity.kt`.
 
-## Démarrage Android
+Pour iOS, ajouter dans `Info.plist` :
+
+```xml
+<key>NSLocationWhenInUseUsageDescription</key>
+<string>FTG utilise votre position pour afficher les food trucks autour de vous.</string>
+<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+<string>FTG utilise votre position en arrière-plan lorsque le Radar est activé.</string>
+<key>UIBackgroundModes</key>
+<array>
+  <string>location</string>
+</array>
+```
+
+Le suivi iOS fonctionne quand l'application passe en arrière-plan. Après une fermeture forcée de l'application par l'utilisateur, iOS ne garantit pas la relance automatique du suivi.
+
+## Démarrage Android et iOS
 
 Le démarrage doit rester dans le parcours utilisateur, une fois la session Supabase ouverte et après obtention de `LocationPermission.always` avec Geolocator.
 
@@ -61,4 +76,3 @@ Une réponse 401 ou 403 de l'endpoint arrête également le service et efface sa
 - `lastError` : dernier diagnostic non sensible.
 
 Le token n'est jamais inclus dans ce diagnostic.
-
