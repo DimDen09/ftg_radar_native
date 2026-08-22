@@ -8,7 +8,7 @@ Native Android and iOS background location radar for Food Truck Galaxy.
   s.homepage         = 'https://foodtruckgalaxy.be'
   s.license          = { :type => 'Proprietary', :text => 'Copyright Food Truck Galaxy. All rights reserved.' }
   s.author           = 'Food Truck Galaxy'
-  s.source           = { :git => 'https://github.com/DimDen09/ftg_radar_native.git', :tag => s.version.to_s }
+  s.source           = { :git => 'https://github.com/DimDen09/ftg_radar_native.git', :tag => "v#{s.version}" }
   s.source_files     = 'Classes/**/*'
   s.dependency 'Flutter'
   s.platform         = :ios, '13.0'
