@@ -8,7 +8,7 @@ Dans les dépendances du Custom Widget `FTGSessionGateV1`, ajouter :
 ftg_radar_native:
   git:
     url: https://github.com/DimDen09/ftg_radar_native.git
-    ref: 54c80dc7b0ce1d592e84b591631bcb4b91f69857
+    ref: aea27078522c54e4b7170a67157158ddb7048e26
 ```
 
 Puis importer :
