@@ -23,44 +23,45 @@ class FtgRadarNativePlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
-            "startRadar" -> {
-                val token = call.argument<String>("token")?.trim().orEmpty()
-                val endpoint = call.argument<String>("endpoint")?.trim().orEmpty()
-                if (token.isEmpty() || endpoint.isEmpty()) {
-                    result.error("RADAR_CONFIG", "token/endpoint manquant", null)
-                    return
-                }
-
-                val intent = Intent(context, RadarLocationService::class.java).apply {
-                    action = RadarLocationService.ACTION_START
-                    putExtra(RadarLocationService.EXTRA_TOKEN, token)
-                    putExtra(RadarLocationService.EXTRA_ENDPOINT, endpoint)
-                }
-                ContextCompat.startForegroundService(context, intent)
-                result.success("started")
-            }
+            "startRadar" -> startRadar(call, result)
 
             "stopRadar" -> {
-                context.getSharedPreferences(
-                    RadarLocationService.PREFS_NAME,
-                    Context.MODE_PRIVATE
-                ).edit().clear().apply()
+                RadarLocationService.clearConfiguration(context)
                 context.stopService(Intent(context, RadarLocationService::class.java))
                 result.success(null)
             }
 
-            "isRadarRunning" -> {
-                val prefs = context.getSharedPreferences(
-                    RadarLocationService.PREFS_NAME,
-                    Context.MODE_PRIVATE
-                )
-                result.success(
-                    prefs.getString("token", "").orEmpty().isNotEmpty() &&
-                    prefs.getString("endpoint", "").orEmpty().isNotEmpty()
-                )
-            }
+            "isRadarRunning" -> result.success(RadarLocationService.isRunning())
+
+            "getRadarStatus" -> result.success(RadarLocationService.status(context))
 
             else -> result.notImplemented()
+        }
+    }
+
+    private fun startRadar(call: MethodCall, result: MethodChannel.Result) {
+        val config = try {
+            RadarConfig.from(
+                call.argument<String>("token"),
+                call.argument<String>("endpoint"),
+            )
+        } catch (exception: IllegalArgumentException) {
+            result.error("RADAR_CONFIG", exception.message, null)
+            return
+        }
+
+        val intent = Intent(context, RadarLocationService::class.java).apply {
+            action = RadarLocationService.ACTION_START
+            putExtra(RadarLocationService.EXTRA_TOKEN, config.token)
+            putExtra(RadarLocationService.EXTRA_ENDPOINT, config.endpoint)
+        }
+        try {
+            RadarLocationService.markStarting(context)
+            ContextCompat.startForegroundService(context, intent)
+            result.success("started")
+        } catch (exception: RuntimeException) {
+            RadarLocationService.recordStartFailure(context, exception)
+            result.error("RADAR_START", exception.message, null)
         }
     }
 

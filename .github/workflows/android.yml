@@ -1,0 +1,73 @@
+name: Android
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.38.5
+          channel: stable
+          cache: true
+
+      - name: Resolve plugin dependencies
+        run: flutter pub get
+
+      - name: Check Dart formatting
+        run: dart format --output=none --set-exit-if-changed lib test example/lib example/test
+
+      - name: Analyze plugin
+        run: flutter analyze
+
+      - name: Test plugin
+        run: flutter test
+
+      - name: Resolve example dependencies
+        working-directory: example
+        run: flutter pub get
+
+      - name: Analyze example
+        working-directory: example
+        run: flutter analyze
+
+      - name: Test example
+        working-directory: example
+        run: flutter test
+
+      - name: Test Android native code
+        working-directory: example/android
+        run: ./gradlew :ftg_radar_native:testDebugUnitTest --stacktrace
+
+      - name: Build Android APK
+        working-directory: example
+        run: flutter build apk --debug
+
+      - name: Publish Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ftg-radar-native-android-debug
+          path: example/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
