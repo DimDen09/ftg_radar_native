@@ -2,7 +2,6 @@ package com.foodtruckgalaxy.ftg_radar_native
 
 import android.content.Context
 import android.content.Intent
-import androidx.core.content.ContextCompat
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -26,14 +25,22 @@ class FtgRadarNativePlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             "startRadar" -> startRadar(call, result)
 
             "stopRadar" -> {
+                RadarWorkerScheduler.cancel(context)
+                RadarGeofenceRegistrar.removeBlocking(context)
+                RadarEventStore(context).clear()
+                RadarGeofenceState.disable(context)
                 RadarLocationService.clearConfiguration(context)
                 context.stopService(Intent(context, RadarLocationService::class.java))
                 result.success(null)
             }
 
-            "isRadarRunning" -> result.success(RadarLocationService.isRunning())
+            "isRadarRunning" -> result.success(RadarGeofenceState.isEnabled(context))
 
-            "getRadarStatus" -> result.success(RadarLocationService.status(context))
+            "getRadarStatus" -> result.success(
+                RadarGeofenceState.status(context) + mapOf(
+                    "legacyForegroundServiceRunning" to RadarLocationService.isRunning(),
+                ),
+            )
 
             else -> result.notImplemented()
         }
@@ -50,18 +57,13 @@ class FtgRadarNativePlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             return
         }
 
-        val intent = Intent(context, RadarLocationService::class.java).apply {
-            action = RadarLocationService.ACTION_START
-            putExtra(RadarLocationService.EXTRA_TOKEN, config.token)
-            putExtra(RadarLocationService.EXTRA_ENDPOINT, config.endpoint)
-        }
-        try {
-            RadarLocationService.markStarting(context)
-            ContextCompat.startForegroundService(context, intent)
-            result.success("started")
-        } catch (exception: RuntimeException) {
-            RadarLocationService.recordStartFailure(context, exception)
-            result.error("RADAR_START", exception.message, null)
+        // The historical foreground service deliberately remains compiled for
+        // comparison, but the production Radar path no longer starts it.
+        RadarGeofenceStarter.start(context, config) { outcome ->
+            outcome.fold(
+                onSuccess = result::success,
+                onFailure = { error -> result.error("RADAR_START", error.message, null) },
+            )
         }
     }
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.0
+
+- Surveillance Android par `GeofencingClient`, indépendante du processus Flutter.
+- 99 zones trucks au maximum plus une sentinelle de déplacement.
+- Événements persistés avant livraison et retries réseau via WorkManager.
+- Réenregistrement après redémarrage ou mise à jour de l'application.
+- Le service foreground historique reste disponible pour comparaison mais n'est plus démarré.
+
 ## 1.3.0
 
 - RÃ©veil Android durable sur dÃ©placement via un `PendingIntent` systÃ¨me.

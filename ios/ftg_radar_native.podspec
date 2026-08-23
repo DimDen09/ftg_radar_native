@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'ftg_radar_native'
-  s.version          = '1.3.0'
+  s.version          = '1.4.0'
   s.summary          = 'Native background location radar for Food Truck Galaxy.'
   s.description      = <<-DESC
 Native Android and iOS background location radar for Food Truck Galaxy.

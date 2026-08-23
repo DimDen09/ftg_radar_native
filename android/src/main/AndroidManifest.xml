@@ -6,6 +6,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application>
         <receiver
@@ -13,6 +14,23 @@
             android:enabled="true"
             android:exported="false" />
 
+        <receiver
+            android:name="com.foodtruckgalaxy.ftg_radar_native.RadarGeofenceReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
+            android:name="com.foodtruckgalaxy.ftg_radar_native.RadarRestoreReceiver"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.RECEIVE_BOOT_COMPLETED">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Historical comparison path. The GeofencingClient path never starts it. -->
         <service
             android:name="com.foodtruckgalaxy.ftg_radar_native.RadarLocationService"
             android:enabled="true"
