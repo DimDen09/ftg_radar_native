@@ -67,7 +67,6 @@ internal object RadarGeofenceRegistrar {
                 .build()
         }
         val request = GeofencingRequest.Builder()
-            .setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
             .addGeofences(geofences)
             .build()
         Tasks.await(client.addGeofences(request, pendingIntent), TASK_TIMEOUT_SECONDS, TimeUnit.SECONDS)
