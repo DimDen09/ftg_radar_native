@@ -22,4 +22,16 @@ void main() {
     expect(podspec, contains("s.version          = '$version'"));
     expect(podspec, contains(':tag => "v#{s.version}"'));
   });
+
+  test('Android declares a private receiver for durable location wakeups', () {
+    final manifest = File(
+      'android/src/main/AndroidManifest.xml',
+    ).readAsStringSync();
+
+    expect(manifest, contains('RadarLocationReceiver'));
+    expect(
+      manifest,
+      contains('android:exported="false"'),
+    );
+  });
 }

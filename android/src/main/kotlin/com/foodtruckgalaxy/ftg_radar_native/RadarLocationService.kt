@@ -11,37 +11,28 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.location.Location
-import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Build
 import android.os.IBinder
-import android.os.Looper
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
-import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
-import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicBoolean
 
-class RadarLocationService : Service(), LocationListener {
+class RadarLocationService : Service() {
     companion object {
         const val ACTION_START = "com.foodtruckgalaxy.radar.START"
         const val EXTRA_TOKEN = "radar_token"
         const val EXTRA_ENDPOINT = "radar_endpoint"
         const val PREFS_NAME = "ftg_radar_native_v23"
 
-        private const val KEY_TOKEN = "token"
-        private const val KEY_ENDPOINT = "endpoint"
+        internal const val KEY_TOKEN = "token"
+        internal const val KEY_ENDPOINT = "endpoint"
         private const val KEY_STATE = "state"
         private const val KEY_LAST_SYNC_AT = "last_sync_at"
         private const val KEY_LAST_HTTP_STATUS = "last_http_status"
         private const val KEY_LAST_ERROR = "last_error"
         private const val CHANNEL_ID = "ftg_radar_location"
         private const val NOTIFICATION_ID = 22107
-        private const val MIN_TIME_MS = 5_000L
-        private const val MIN_DISTANCE_M = 10f
 
         @Volatile
         private var active = false
@@ -65,6 +56,7 @@ class RadarLocationService : Service(), LocationListener {
         }
 
         fun clearConfiguration(context: Context) {
+            RadarLocationWakeRegistration.unregister(context)
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
                 .remove(KEY_TOKEN)
@@ -92,21 +84,35 @@ class RadarLocationService : Service(), LocationListener {
             val detail = exception.message?.take(160)?.let { ": $it" }.orEmpty()
             return "${exception.javaClass.simpleName}$detail"
         }
+
+        internal fun recordHttpResult(context: Context, code: Int) {
+            val editor = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putInt(KEY_LAST_HTTP_STATUS, code)
+            if (code in 200..299) {
+                editor
+                    .putString(KEY_LAST_SYNC_AT, RadarTimestamp.format(System.currentTimeMillis()))
+                    .remove(KEY_LAST_ERROR)
+            } else {
+                editor.putString(KEY_LAST_ERROR, "http_status_$code")
+            }
+            editor.apply()
+        }
+
+        internal fun recordFailure(
+            context: Context,
+            code: String,
+            exception: Throwable? = null,
+        ) {
+            val detail = exception?.let { ": ${safeError(it)}" }.orEmpty()
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(KEY_LAST_ERROR, "$code$detail")
+                .apply()
+        }
     }
 
     private lateinit var locationManager: LocationManager
-    private val networkExecutor = Executors.newSingleThreadExecutor()
-    private val requestInFlight = AtomicBoolean(false)
-
-    @Volatile
-    private var token = ""
-
-    @Volatile
-    private var endpoint = ""
-
-    private var lastSentLocation: Location? = null
-    private var lastSentAtMs = 0L
-
     override fun onCreate() {
         super.onCreate()
         active = true
@@ -130,8 +136,6 @@ class RadarLocationService : Service(), LocationListener {
             return START_NOT_STICKY
         }
 
-        token = config.token
-        endpoint = config.endpoint
         prefs.edit()
             .putString(KEY_TOKEN, config.token)
             .putString(KEY_ENDPOINT, config.endpoint)
@@ -164,24 +168,7 @@ class RadarLocationService : Service(), LocationListener {
             return
         }
 
-        runCatching { locationManager.removeUpdates(this) }
-        val looper = Looper.getMainLooper()
-        var registeredProviders = 0
-
-        listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER).forEach { provider ->
-            try {
-                locationManager.requestLocationUpdates(
-                    provider,
-                    MIN_TIME_MS,
-                    MIN_DISTANCE_M,
-                    this,
-                    looper,
-                )
-                registeredProviders += 1
-            } catch (exception: RuntimeException) {
-                recordFailure("provider_${provider}_failed", exception)
-            }
-        }
+        val registeredProviders = RadarLocationWakeRegistration.register(this, locationManager)
 
         if (registeredProviders == 0) {
             stopSelf()
@@ -190,7 +177,7 @@ class RadarLocationService : Service(), LocationListener {
 
         bestLastKnownLocation()?.let { location ->
             if (System.currentTimeMillis() - location.time <= 120_000L) {
-                handleLocation(location, force = true)
+                RadarLocationSync.enqueue(this, location, force = true)
             }
         }
     }
@@ -222,91 +209,8 @@ class RadarLocationService : Service(), LocationListener {
         return locations.maxByOrNull { it.time }
     }
 
-    override fun onLocationChanged(location: Location) {
-        handleLocation(location, force = false)
-    }
-
-    private fun handleLocation(location: Location, force: Boolean) {
-        if (location.latitude !in -90.0..90.0 || location.longitude !in -180.0..180.0) return
-
-        val now = System.currentTimeMillis()
-        if (!force && now - lastSentAtMs < 4_000L) return
-
-        val previous = lastSentLocation
-        if (!force && previous != null && previous.distanceTo(location) < MIN_DISTANCE_M) return
-        if (!force && location.hasAccuracy() && location.accuracy > 250f) return
-
-        lastSentLocation = Location(location)
-        lastSentAtMs = now
-        syncLocation(location)
-    }
-
-    private fun syncLocation(location: Location) {
-        if (!requestInFlight.compareAndSet(false, true)) return
-
-        val currentToken = token
-        val currentEndpoint = endpoint
-        networkExecutor.execute {
-            var connection: HttpURLConnection? = null
-            try {
-                val body = JSONObject().apply {
-                    put("token", currentToken)
-                    put("lat", location.latitude)
-                    put("lng", location.longitude)
-                    if (location.hasAccuracy()) put("accuracy", location.accuracy.toDouble())
-                    put("captured_at", RadarTimestamp.format(location.time))
-                }
-
-                connection = (URL(currentEndpoint).openConnection() as HttpURLConnection).apply {
-                    requestMethod = "POST"
-                    connectTimeout = 8_000
-                    readTimeout = 8_000
-                    doOutput = true
-                    setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                    setRequestProperty("Accept", "application/json")
-                    setRequestProperty("X-FTG-Radar", "native-v23")
-                }
-
-                connection.outputStream.use { output ->
-                    output.write(body.toString().toByteArray(Charsets.UTF_8))
-                }
-
-                val code = connection.responseCode
-                recordHttpResult(code)
-                if (code == 401 || code == 403) {
-                    clearConfiguration(this)
-                    recordFailure("authentication_revoked")
-                    stopSelf()
-                }
-            } catch (exception: RuntimeException) {
-                recordFailure("network_failed", exception)
-            } finally {
-                connection?.disconnect()
-                requestInFlight.set(false)
-            }
-        }
-    }
-
-    private fun recordHttpResult(code: Int) {
-        val editor = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
-            .edit()
-            .putInt(KEY_LAST_HTTP_STATUS, code)
-        if (code in 200..299) {
-            editor
-                .putString(KEY_LAST_SYNC_AT, RadarTimestamp.format(System.currentTimeMillis()))
-                .remove(KEY_LAST_ERROR)
-        } else {
-            editor.putString(KEY_LAST_ERROR, "http_status_$code")
-        }
-        editor.apply()
-    }
-
     private fun recordFailure(code: String, exception: Throwable? = null) {
-        val detail = exception?.let { ": ${safeError(it)}" }.orEmpty()
-        getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
-            .edit()
-            .putString(KEY_LAST_ERROR, "$code$detail")
-            .apply()
+        recordFailure(this, code, exception)
     }
 
     private fun createNotificationChannel() {
@@ -354,8 +258,6 @@ class RadarLocationService : Service(), LocationListener {
             .edit()
             .putString(KEY_STATE, "stopped")
             .apply()
-        runCatching { locationManager.removeUpdates(this) }
-        networkExecutor.shutdownNow()
         super.onDestroy()
     }
 

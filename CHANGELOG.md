@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.0
+
+- RÃ©veil Android durable sur dÃ©placement via un `PendingIntent` systÃ¨me.
+- RÃ©ception et synchronisation natives mÃªme lorsque le processus Flutter a Ã©tÃ© retirÃ© des applications rÃ©centes.
+- Tests Android simulant l'enregistrement GPS et rÃ©seau ainsi que l'arrÃªt explicite du Radar.
+
 ## 1.2.0
 
 - Implémentation native iOS avec Core Location et suivi en arrière-plan.
