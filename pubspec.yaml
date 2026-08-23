@@ -1,6 +1,6 @@
 name: ftg_radar_native
 description: Process-independent native geofencing radar for Food Truck Galaxy.
-version: 1.4.0
+version: 1.4.1
 homepage: https://foodtruckgalaxy.be
 repository: https://github.com/DimDen09/ftg_radar_native
 publish_to: none
@@ -17,9 +17,6 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
-  # FlutterFlow's generated FTG project currently uses this exact version.
-  # It is only needed to type-check the integration bridge in this repository;
-  # consumers of the native plugin do not inherit it.
   supabase_flutter: 2.9.0
 
 flutter:

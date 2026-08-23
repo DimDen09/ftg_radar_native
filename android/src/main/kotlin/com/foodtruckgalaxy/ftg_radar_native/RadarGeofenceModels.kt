@@ -14,6 +14,7 @@ internal data class RadarGeofenceSpec(
     val radiusMeters: Float,
     val distanceMeters: Double,
     val notifyOnExit: Boolean,
+    val truckName: String?,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("request_id", requestId)
@@ -23,6 +24,7 @@ internal data class RadarGeofenceSpec(
         put("radius_m", radiusMeters.toDouble())
         put("distance_m", distanceMeters)
         put("notify_on_exit", notifyOnExit)
+        put("truck_name", truckName ?: JSONObject.NULL)
     }
 
     companion object {
@@ -35,6 +37,7 @@ internal data class RadarGeofenceSpec(
             longitude: Double,
             radiusMeters: Float,
             distanceMeters: Double,
+            name: String? = null,
         ) = RadarGeofenceSpec(
             requestId = "truck:$id",
             kind = RadarGeofenceKind.TRUCK,
@@ -43,6 +46,7 @@ internal data class RadarGeofenceSpec(
             radiusMeters = radiusMeters.coerceAtLeast(MIN_RADIUS_M),
             distanceMeters = distanceMeters,
             notifyOnExit = false,
+            truckName = name?.trim()?.takeIf { it.isNotEmpty() },
         )
 
         fun sentinel(latitude: Double, longitude: Double, radiusMeters: Float) =
@@ -54,6 +58,7 @@ internal data class RadarGeofenceSpec(
                 radiusMeters = radiusMeters.coerceAtLeast(MIN_RADIUS_M),
                 distanceMeters = 0.0,
                 notifyOnExit = true,
+                truckName = null,
             )
 
         fun fromJson(json: JSONObject) = RadarGeofenceSpec(
@@ -64,6 +69,9 @@ internal data class RadarGeofenceSpec(
             radiusMeters = json.getDouble("radius_m").toFloat(),
             distanceMeters = json.optDouble("distance_m", 0.0),
             notifyOnExit = json.optBoolean("notify_on_exit", false),
+            truckName = json.optString("truck_name")
+                .trim()
+                .takeIf { it.isNotEmpty() && it != "null" },
         )
     }
 }
@@ -120,6 +128,7 @@ internal data class RadarQueuedEvent(
     val capturedAtMillis: Long,
     val attempts: Int,
     val detail: String?,
+    val localNotificationShown: Boolean,
 ) {
     val hasTriggeringLocation: Boolean
         get() = latitude != null && longitude != null
@@ -134,6 +143,7 @@ internal data class RadarQueuedEvent(
         put("captured_at_ms", capturedAtMillis)
         put("attempts", attempts)
         put("detail", detail ?: JSONObject.NULL)
+        put("local_notification_shown", localNotificationShown)
     }
 
     fun withAttempt() = copy(attempts = attempts + 1)
@@ -146,6 +156,7 @@ internal data class RadarQueuedEvent(
             longitude: Double?,
             accuracy: Float?,
             detail: String? = null,
+            localNotificationShown: Boolean = false,
         ) = RadarQueuedEvent(
             id = UUID.randomUUID().toString(),
             type = type,
@@ -156,6 +167,7 @@ internal data class RadarQueuedEvent(
             capturedAtMillis = System.currentTimeMillis(),
             attempts = 0,
             detail = detail,
+            localNotificationShown = localNotificationShown,
         )
 
         fun fromJson(json: JSONObject) = RadarQueuedEvent(
@@ -168,6 +180,7 @@ internal data class RadarQueuedEvent(
             capturedAtMillis = json.getLong("captured_at_ms"),
             attempts = json.optInt("attempts", 0),
             detail = json.optString("detail").takeIf { it.isNotBlank() },
+            localNotificationShown = json.optBoolean("local_notification_shown", false),
         )
     }
 }

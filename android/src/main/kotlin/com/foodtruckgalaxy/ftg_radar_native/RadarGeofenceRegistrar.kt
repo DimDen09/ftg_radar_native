@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit
 
 internal object RadarGeofenceRegistrar {
     private const val TASK_TIMEOUT_SECONDS = 25L
+    private const val NOTIFICATION_RESPONSIVENESS_MS = 5_000
 
     fun permissionProblem(context: Context): String? {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) !=
@@ -47,6 +48,10 @@ internal object RadarGeofenceRegistrar {
         val pendingIntent = pendingIntent(context)
         Tasks.await(client.removeGeofences(pendingIntent), TASK_TIMEOUT_SECONDS, TimeUnit.SECONDS)
 
+        // Seed before addGeofences so INITIAL_TRIGGER_ENTER cannot create a fake
+        // local alert for a truck that the user was already inside when we rearmed.
+        RadarLocalPresenceStore(context).seedFromRegistration(specs)
+
         val geofences = specs.map { spec ->
             val transitions = if (spec.notifyOnExit) {
                 Geofence.GEOFENCE_TRANSITION_EXIT
@@ -57,7 +62,7 @@ internal object RadarGeofenceRegistrar {
                 .setRequestId(spec.requestId)
                 .setCircularRegion(spec.latitude, spec.longitude, spec.radiusMeters)
                 .setTransitionTypes(transitions)
-                .setNotificationResponsiveness(60_000)
+                .setNotificationResponsiveness(NOTIFICATION_RESPONSIVENESS_MS)
                 .setExpirationDuration(Geofence.NEVER_EXPIRE)
                 .build()
         }
@@ -68,7 +73,7 @@ internal object RadarGeofenceRegistrar {
         Tasks.await(client.addGeofences(request, pendingIntent), TASK_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         RadarGeofenceState.saveRegistered(context, specs)
         RadarLog.info(
-            "registration_success total=${specs.size} trucks=${specs.count { it.kind == RadarGeofenceKind.TRUCK }} sentinel=1",
+            "registration_success total=${specs.size} trucks=${specs.count { it.kind == RadarGeofenceKind.TRUCK }} sentinel=1 responsiveness_ms=$NOTIFICATION_RESPONSIVENESS_MS",
         )
     }
 
@@ -81,6 +86,7 @@ internal object RadarGeofenceRegistrar {
                 TimeUnit.SECONDS,
             )
         }
+        RadarLocalPresenceStore(context).clear()
         RadarLog.info("registration_removed")
     }
 

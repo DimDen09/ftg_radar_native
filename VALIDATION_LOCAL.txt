@@ -1,0 +1,19 @@
+FTG Radar candidate validation
+
+PASS  Kotlin changed production files compile against local signature stubs.
+PASS  Smoke: initial-inside suppressed; true outside->inside accepted; duplicate enter suppressed; exit->reentry accepted.
+PASS  Smoke: truck_name survives persistence.
+PASS  Smoke: local_notification_shown survives queue persistence.
+PASS  Static: no ExistingWorkPolicy.KEEP in candidate production code.
+PASS  Static: APPEND_OR_REPLACE present.
+PASS  Static: geofence responsiveness = 5000 ms.
+PASS  Backend: favorite CLOSED->OPEN generates notification and push job (transaction rolled back).
+PASS  Backend: normal favorite push=1, Radar fallback push=1, Radar local-primary duplicate push=0.
+PASS  Backend: simulated closed truck excluded from geofence plan after migration.
+PASS  Backend: current plan names_ok=true and all_open=true.
+PASS  Edge: ftg-radar-location-sync v6 deployed.
+PASS  Push edge: send-onesignal-push v52 deployed with Radar TTL=0.
+
+NOT RUN: real ./gradlew test (Gradle/Android SDK unavailable in this runtime).
+NOT RUN: Android CI build (GitHub write is denied by integration 403).
+NOT RUN: physical device validation of local notification.

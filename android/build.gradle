@@ -1,5 +1,5 @@
 group 'com.foodtruckgalaxy.ftg_radar_native'
-version '1.4.0'
+version '1.4.1'
 
 buildscript {
     ext.kotlin_version = '2.2.20'
@@ -52,4 +52,5 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'androidx.test:core:1.7.0'
     testImplementation 'org.robolectric:robolectric:4.16.1'
+    testImplementation 'androidx.work:work-testing:2.10.2'
 }

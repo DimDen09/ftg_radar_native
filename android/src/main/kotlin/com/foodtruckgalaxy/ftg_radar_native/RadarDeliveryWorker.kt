@@ -12,29 +12,45 @@ internal class RadarDeliveryWorker(
     params: WorkerParameters,
 ) : Worker(appContext, params) {
     override fun doWork(): Result {
-        if (!RadarGeofenceState.isEnabled(applicationContext)) return Result.success()
+        RadarLog.info("delivery_worker_started work_id=$id")
+        if (!RadarGeofenceState.isEnabled(applicationContext)) {
+            RadarLog.info("delivery_worker_finished work_id=$id result=success reason=disabled")
+            return Result.success()
+        }
+
         val store = RadarEventStore(applicationContext)
+        RadarLog.info("delivery_worker_queue_depth work_id=$id depth=${store.size()}")
         repeat(MAX_EVENTS_PER_RUN) {
-            val event = store.peek() ?: return Result.success()
+            val event = store.peek() ?: run {
+                RadarLog.info("delivery_worker_finished work_id=$id result=success queue_depth=0")
+                return Result.success()
+            }
             store.markAttempt(event.id)
             when (val outcome = deliver(event, store.size())) {
                 is DeliveryOutcome.Retry -> {
                     RadarLog.warning("backend_retry type=${event.type} reason=${outcome.reason}")
                     RadarGeofenceState.recordFailure(applicationContext, outcome.reason)
+                    RadarLog.info("delivery_worker_finished work_id=$id result=retry queue_depth=${store.size()}")
                     return Result.retry()
                 }
                 DeliveryOutcome.AuthenticationRevoked -> {
                     RadarLog.warning("backend_authentication_revoked")
                     store.acknowledge(event.id)
                     RadarGeofenceState.disable(applicationContext)
+                    RadarLog.info("delivery_worker_finished work_id=$id result=failure reason=authentication_revoked")
                     return Result.failure()
                 }
                 is DeliveryOutcome.Success -> {
-                    RadarLog.info("backend_delivery type=${event.type}")
+                    RadarLog.info(
+                        "backend_delivery type=${event.type} local_notification_shown=${event.localNotificationShown}",
+                    )
                     if (event.type == RadarTelemetry.REGISTRATION ||
                         event.type == RadarTelemetry.SENTINEL_EXIT
                     ) {
-                        val plan = outcome.plan ?: return Result.retry()
+                        val plan = outcome.plan ?: run {
+                            RadarLog.warning("delivery_worker_missing_plan type=${event.type}")
+                            return Result.retry()
+                        }
                         try {
                             RadarGeofenceRegistrar.registerBlocking(applicationContext, plan)
                         } catch (exception: Exception) {
@@ -53,6 +69,7 @@ internal class RadarDeliveryWorker(
                                 )
                             }
                             RadarLog.warning("rearm_failed code=$code", exception)
+                            RadarLog.info("delivery_worker_finished work_id=$id result=retry reason=rearm_failed")
                             return Result.retry()
                         }
                         store.append(
@@ -71,7 +88,19 @@ internal class RadarDeliveryWorker(
                 }
             }
         }
-        return if (store.size() == 0) Result.success() else Result.retry()
+
+        val remaining = store.size()
+        if (remaining == 0) {
+            RadarLog.info("delivery_worker_finished work_id=$id result=success queue_depth=0")
+            return Result.success()
+        }
+
+        // The current unique-work node must finish so the appended successor can run.
+        // This also restores the invariant queue non-empty => delivery work scheduled.
+        RadarWorkerScheduler.enqueueDelivery(applicationContext)
+        RadarLog.info("fallback_work_scheduled work_id=$id queue_depth=$remaining")
+        RadarLog.info("delivery_worker_finished work_id=$id result=success queue_depth=$remaining")
+        return Result.success()
     }
 
     private fun deliver(event: RadarQueuedEvent, queueDepth: Int): DeliveryOutcome {
@@ -95,6 +124,7 @@ internal class RadarDeliveryWorker(
                 put("has_triggering_location", event.hasTriggeringLocation)
                 put("detail", event.detail ?: JSONObject.NULL)
                 put("is_service_running", false)
+                put("local_notification_shown", event.localNotificationShown)
                 if (event.hasTriggeringLocation) {
                     put("lat", event.latitude)
                     put("lng", event.longitude)
@@ -141,6 +171,7 @@ internal class RadarDeliveryWorker(
                 longitude = truck.optDouble("lng", Double.NaN),
                 radiusMeters = truck.optDouble("radius_m", sentinelRadius.toDouble()).toFloat(),
                 distanceMeters = truck.optDouble("distance_m", Double.MAX_VALUE),
+                name = truck.optString("truck_name").trim().takeIf { it.isNotEmpty() },
             )
         }
         return RadarGeofencePlan.create(centerLat, centerLng, sentinelRadius, candidates)
