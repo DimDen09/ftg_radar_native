@@ -10,7 +10,7 @@ internal class RadarEventStore(context: Context) {
     )
 
     fun append(event: RadarQueuedEvent) = synchronized(LOCK) {
-        val queue = readQueue().apply { add(event) }
+        val queue = readQueue().toMutableList().apply { add(event) }
         writeQueue(queue)
     }
 
