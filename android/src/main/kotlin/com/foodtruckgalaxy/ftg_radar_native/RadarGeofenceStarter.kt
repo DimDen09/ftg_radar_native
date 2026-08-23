@@ -3,9 +3,12 @@ package com.foodtruckgalaxy.ftg_radar_native
 import android.annotation.SuppressLint
 import android.content.Context
 import android.location.Location
+import android.os.Handler
+import android.os.Looper
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
+import java.util.concurrent.atomic.AtomicBoolean
 
 internal object RadarGeofenceStarter {
     @SuppressLint("MissingPermission")
@@ -26,31 +29,38 @@ internal object RadarGeofenceStarter {
 
         val client = LocationServices.getFusedLocationProviderClient(appContext)
         val cancellation = CancellationTokenSource()
+        val finished = AtomicBoolean(false)
+
+        fun finish(location: Location?, detail: String?) {
+            if (!finished.compareAndSet(false, true)) return
+            persistRegistration(appContext, location, detail)
+            completion(Result.success("geofence_initializing"))
+        }
+
+        fun finishFromLastLocation(detail: String) {
+            client.lastLocation.addOnCompleteListener { task ->
+                val last = if (task.isSuccessful) task.result else null
+                finish(last, if (last == null) "triggering_location_missing:$detail" else detail)
+            }
+        }
+
+        Handler(Looper.getMainLooper()).postDelayed({
+            if (!finished.get()) {
+                cancellation.cancel()
+                finishFromLastLocation("initial_location_timeout_last_known")
+            }
+        }, INITIAL_LOCATION_TIMEOUT_MS)
+
         client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, cancellation.token)
             .addOnSuccessListener { location ->
                 if (location != null) {
-                    persistRegistration(appContext, location, null)
-                    completion(Result.success("geofence_initializing"))
+                    finish(location, null)
                 } else {
-                    client.lastLocation
-                        .addOnCompleteListener { lastTask ->
-                            val last = if (lastTask.isSuccessful) lastTask.result else null
-                            persistRegistration(
-                                appContext,
-                                last,
-                                if (last == null) "triggering_location_missing" else "last_known_location",
-                            )
-                            completion(Result.success("geofence_initializing"))
-                        }
+                    finishFromLastLocation("last_known_location")
                 }
             }
             .addOnFailureListener { exception ->
-                persistRegistration(
-                    appContext,
-                    null,
-                    "initial_location_${exception.javaClass.simpleName}",
-                )
-                completion(Result.success("geofence_initializing"))
+                finishFromLastLocation("initial_location_${exception.javaClass.simpleName}")
             }
     }
 
@@ -75,4 +85,6 @@ internal object RadarGeofenceStarter {
         )
         RadarWorkerScheduler.enqueueDelivery(context)
     }
+
+    private const val INITIAL_LOCATION_TIMEOUT_MS = 15_000L
 }

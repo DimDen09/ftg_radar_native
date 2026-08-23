@@ -12,12 +12,15 @@ internal class RadarEventStore(context: Context) {
     fun append(event: RadarQueuedEvent) = synchronized(LOCK) {
         val queue = readQueue().toMutableList().apply { add(event) }
         writeQueue(queue)
+        RadarLog.info("event_persisted type=${event.type} queue_depth=${queue.size}")
     }
 
     fun peek(): RadarQueuedEvent? = synchronized(LOCK) { readQueue().firstOrNull() }
 
     fun acknowledge(id: String) = synchronized(LOCK) {
-        writeQueue(readQueue().filterNot { it.id == id })
+        val queue = readQueue().filterNot { it.id == id }
+        writeQueue(queue)
+        RadarLog.info("event_acknowledged queue_depth=${queue.size}")
     }
 
     fun markAttempt(id: String) = synchronized(LOCK) {

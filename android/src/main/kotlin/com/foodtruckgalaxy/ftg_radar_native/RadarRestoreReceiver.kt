@@ -12,7 +12,7 @@ class RadarRestoreReceiver : BroadcastReceiver() {
             Intent.ACTION_MY_PACKAGE_REPLACED -> RadarWorkerScheduler.enqueueRestore(
                 context,
                 intent.action.orEmpty(),
-            )
+            ).also { RadarLog.info("restore_scheduled cause=${intent.action}") }
         }
     }
 }

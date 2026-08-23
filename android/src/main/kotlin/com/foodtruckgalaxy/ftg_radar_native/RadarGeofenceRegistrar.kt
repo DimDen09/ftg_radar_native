@@ -67,6 +67,9 @@ internal object RadarGeofenceRegistrar {
             .build()
         Tasks.await(client.addGeofences(request, pendingIntent), TASK_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         RadarGeofenceState.saveRegistered(context, specs)
+        RadarLog.info(
+            "registration_success total=${specs.size} trucks=${specs.count { it.kind == RadarGeofenceKind.TRUCK }} sentinel=1",
+        )
     }
 
     fun removeBlocking(context: Context) {
@@ -78,6 +81,7 @@ internal object RadarGeofenceRegistrar {
                 TimeUnit.SECONDS,
             )
         }
+        RadarLog.info("registration_removed")
     }
 
     fun pendingIntent(context: Context): PendingIntent {

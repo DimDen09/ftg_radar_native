@@ -23,15 +23,28 @@ void main() {
     expect(podspec, contains(':tag => "v#{s.version}"'));
   });
 
-  test('Android declares a private receiver for durable location wakeups', () {
+  test('Android declares process wake receivers for geofencing and reboot', () {
     final manifest = File(
       'android/src/main/AndroidManifest.xml',
     ).readAsStringSync();
 
-    expect(manifest, contains('RadarLocationReceiver'));
+    expect(manifest, contains('RadarGeofenceReceiver'));
+    expect(manifest, contains('RadarRestoreReceiver'));
+    expect(manifest, contains('android.intent.action.BOOT_COMPLETED'));
+    expect(manifest, contains('android.intent.action.MY_PACKAGE_REPLACED'));
     expect(
       manifest,
       contains('android:exported="false"'),
     );
+  });
+
+  test('production plugin start path does not start the foreground service', () {
+    final plugin = File(
+      'android/src/main/kotlin/com/foodtruckgalaxy/ftg_radar_native/'
+      'FtgRadarNativePlugin.kt',
+    ).readAsStringSync();
+
+    expect(plugin, isNot(contains('startForegroundService')));
+    expect(plugin, contains('RadarGeofenceStarter.start'));
   });
 }

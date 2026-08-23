@@ -19,15 +19,18 @@ internal class RadarDeliveryWorker(
             store.markAttempt(event.id)
             when (val outcome = deliver(event, store.size())) {
                 is DeliveryOutcome.Retry -> {
+                    RadarLog.warning("backend_retry type=${event.type} reason=${outcome.reason}")
                     RadarGeofenceState.recordFailure(applicationContext, outcome.reason)
                     return Result.retry()
                 }
                 DeliveryOutcome.AuthenticationRevoked -> {
+                    RadarLog.warning("backend_authentication_revoked")
                     store.acknowledge(event.id)
                     RadarGeofenceState.disable(applicationContext)
                     return Result.failure()
                 }
                 is DeliveryOutcome.Success -> {
+                    RadarLog.info("backend_delivery type=${event.type}")
                     if (event.type == RadarTelemetry.REGISTRATION ||
                         event.type == RadarTelemetry.SENTINEL_EXIT
                     ) {
@@ -37,6 +40,19 @@ internal class RadarDeliveryWorker(
                         } catch (exception: Exception) {
                             val code = exception.message ?: exception.javaClass.simpleName
                             RadarGeofenceState.recordFailure(applicationContext, code)
+                            if (event.attempts == 0) {
+                                store.append(
+                                    RadarQueuedEvent.create(
+                                        type = RadarTelemetry.REARM,
+                                        geofenceId = RadarGeofenceSpec.SENTINEL_ID,
+                                        latitude = event.latitude,
+                                        longitude = event.longitude,
+                                        accuracy = event.accuracy,
+                                        detail = "failed:$code",
+                                    ),
+                                )
+                            }
+                            RadarLog.warning("rearm_failed code=$code", exception)
                             return Result.retry()
                         }
                         store.append(
@@ -49,6 +65,7 @@ internal class RadarDeliveryWorker(
                                 detail = "registered_count=${plan.size}",
                             ),
                         )
+                        RadarLog.info("rearm_success count=${plan.size}")
                     }
                     store.acknowledge(event.id)
                 }

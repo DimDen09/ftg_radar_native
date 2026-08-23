@@ -27,6 +27,7 @@ internal class RadarRestoreWorker(
         }
 
         persist(RadarTelemetry.BOOT_REREGISTER, cause)
+        RadarLog.info("restore_started cause=$cause count=${specs.size}")
         return try {
             RadarGeofenceRegistrar.registerBlocking(applicationContext, specs)
             RadarEventStore(applicationContext).append(
@@ -40,6 +41,7 @@ internal class RadarRestoreWorker(
                 ),
             )
             RadarWorkerScheduler.enqueueDelivery(applicationContext)
+            RadarLog.info("restore_success cause=$cause count=${specs.size}")
             Result.success()
         } catch (exception: Exception) {
             RadarGeofenceState.recordFailure(
@@ -47,6 +49,7 @@ internal class RadarRestoreWorker(
                 "restore_${exception.javaClass.simpleName}",
             )
             RadarWorkerScheduler.enqueueDelivery(applicationContext)
+            RadarLog.warning("restore_failed cause=$cause", exception)
             Result.retry()
         }
     }

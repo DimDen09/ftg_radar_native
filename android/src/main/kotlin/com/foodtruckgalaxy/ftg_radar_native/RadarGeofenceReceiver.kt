@@ -12,6 +12,9 @@ class RadarGeofenceReceiver : BroadcastReceiver() {
         if (intent.action != ACTION_GEOFENCE_EVENT || !RadarGeofenceState.isEnabled(context)) return
         val event = GeofencingEvent.fromIntent(intent) ?: return
         val location = event.triggeringLocation
+        RadarLog.info(
+            "callback_received transition=${event.geofenceTransition} location_present=${location != null}",
+        )
 
         if (event.hasError()) {
             persistAndSchedule(
@@ -25,6 +28,7 @@ class RadarGeofenceReceiver : BroadcastReceiver() {
                     detail = GeofenceStatusCodes.getStatusCodeString(event.errorCode),
                 ),
             )
+            RadarLog.warning("callback_error code=${event.errorCode}")
             return
         }
 
@@ -42,6 +46,7 @@ class RadarGeofenceReceiver : BroadcastReceiver() {
                     RadarTelemetry.TRUCK_EXIT
                 else -> null
             } ?: return@forEach
+            RadarLog.info("transition type=$type id=${fence.requestId}")
             persistAndSchedule(
                 context,
                 RadarQueuedEvent.create(

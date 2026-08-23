@@ -2,13 +2,13 @@
 
 ## Dépendance
 
-Dans les dépendances du Custom Widget `FTGSessionGateV1`, ajouter :
+Dans les dépendances du Custom Widget `FTGSessionGateV1` :
 
 ```yaml
 ftg_radar_native:
   git:
     url: https://github.com/DimDen09/ftg_radar_native.git
-    ref: aea27078522c54e4b7170a67157158ddb7048e26
+    ref: v1.4.0
 ```
 
 Puis importer :
@@ -17,62 +17,48 @@ Puis importer :
 import 'package:ftg_radar_native/ftg_radar_native.dart';
 ```
 
-Le code Kotlin et le manifest sont fournis par le plugin. Il ne faut pas copier `RadarLocationService.kt` dans le projet FlutterFlow ni modifier `MainActivity.kt`.
+Le code Kotlin et le Manifest sont fournis par le plugin. Ne pas copier les classes Android dans l'export FlutterFlow et ne pas modifier `MainActivity.kt`.
 
-Pour iOS, ajouter dans `Info.plist` :
+## Démarrage Android
 
-```xml
-<key>NSLocationWhenInUseUsageDescription</key>
-<string>FTG utilise votre position pour afficher les food trucks autour de vous.</string>
-<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-<string>FTG utilise votre position en arrière-plan lorsque le Radar est activé.</string>
-<key>UIBackgroundModes</key>
-<array>
-  <string>location</string>
-</array>
-```
+Le démarrage reste dans le parcours utilisateur, session Supabase ouverte, compte utilisateur, Radar activé et permission de localisation précise « toujours autoriser » accordée.
 
-Le suivi iOS fonctionne quand l'application passe en arrière-plan. Après une fermeture forcée de l'application par l'utilisateur, iOS ne garantit pas la relance automatique du suivi.
-
-## Démarrage Android et iOS
-
-Le démarrage doit rester dans le parcours utilisateur, une fois la session Supabase ouverte et après obtention de `LocationPermission.always` avec Geolocator.
-
-1. Construire l'identifiant appareil avec l'identifiant d'abonnement OneSignal, ou à défaut `ftg-user-<user_id>`.
-2. Appeler la RPC Supabase `ftg_issue_radar_device_token_v1` avec `p_device_id`.
-3. Extraire le champ `token` non vide de la réponse.
-4. Appeler `FtgRadarNative.startRadar` avec ce token et l'endpoint ci-dessous.
+1. Construire l'identifiant appareil avec l'abonnement OneSignal, ou à défaut `ftg-user-<user_id>`.
+2. Appeler `ftg_issue_radar_device_token_v1` avec `p_device_id`.
+3. Extraire le token retourné.
+4. Appeler le plugin pendant que FTG est visible.
 
 ```dart
-const endpoint =
-    'https://kfxfpoithlhbesuwjlkw.supabase.co/functions/v1/ftg-radar-location-sync';
-
 await FtgRadarNative.startRadar(
   token: token,
-  endpoint: endpoint,
+  endpoint:
+      'https://kfxfpoithlhbesuwjlkw.supabase.co/functions/v1/ftg-radar-location-sync',
 );
 ```
 
-Le démarrage doit être déclenché pendant que l'application est visible. Sur Android 11 et versions suivantes, si Android ne propose d'abord que l'autorisation « pendant l'utilisation », le parcours FTG doit guider l'utilisateur vers l'autorisation en arrière-plan avant de lancer le service.
+`startRadar` obtient une position initiale ponctuelle, demande le plan backend, puis confie les zones à `GeofencingClient`. Il ne démarre pas `RadarLocationService`.
 
 ## Arrêt et changement de compte
 
-Avant toute déconnexion, bascule vers un compte Pro ou changement de compte :
+Avant déconnexion, passage vers un compte Pro ou désactivation du Radar :
 
 1. Appeler `FtgRadarNative.stopRadar()`.
-2. Appeler la RPC `ftg_revoke_radar_device_token_v1` avec le même `p_device_id`.
-3. Poursuivre la déconnexion ou le changement de parcours.
+2. Révoquer le token avec `ftg_revoke_radar_device_token_v1`.
+3. Poursuivre le changement de parcours.
 
-Une réponse 401 ou 403 de l'endpoint arrête également le service et efface sa configuration locale.
+Une réponse 401 ou 403 désactive aussi la configuration locale.
 
 ## Diagnostic
 
-`FtgRadarNative.getRadarStatus()` renvoie :
+`FtgRadarNative.getRadarStatus()` renvoie notamment :
 
-- `running` : état réel du service dans le processus courant ;
-- `state` : `starting`, `running`, `stopping`, `stopped` ou `start_failed` ;
-- `lastSyncAt` : date UTC de la dernière réponse 2xx ;
-- `lastHttpStatus` : dernier code HTTP ;
-- `lastError` : dernier diagnostic non sensible.
+- `enabled` et `mode=android_geofencing_client` ;
+- `foregroundServiceRequired=false` ;
+- `registrationState` et le dernier échec éventuel ;
+- `registeredCount`, `truckCount`, `sentinelCount` ;
+- `queueDepth` ;
+- `legacyForegroundServiceRunning`, qui doit rester `false`.
 
-Le token n'est jamais inclus dans ce diagnostic.
+Le nombre et le cache local ne prouvent pas que le système surveille encore les zones. La validation finale reste le callback physique reçu alors que le processus FTG est mort.
+
+Le token n'est jamais exposé dans ce diagnostic et aucune clé `service_role` n'est embarquée.
