@@ -2,6 +2,7 @@ package com.foodtruckgalaxy.ftg_radar_native
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.location.Location
 import android.os.Handler
 import android.os.Looper
@@ -14,7 +15,12 @@ internal object RadarGeofenceStarter {
     @SuppressLint("MissingPermission")
     fun start(context: Context, config: RadarConfig, completion: (Result<String>) -> Unit) {
         val appContext = context.applicationContext
+        // Migration safety: an installation upgraded from 1.3 may still have
+        // the historical service or its LocationManager PendingIntent alive.
+        RadarLocationWakeRegistration.unregister(appContext)
+        appContext.stopService(Intent(appContext, RadarLocationService::class.java))
         RadarGeofenceState.configure(appContext, config)
+        RadarLog.info("geofence_start legacy_service_stopped=true")
 
         RadarGeofenceRegistrar.permissionProblem(appContext)?.let { problem ->
             persistProblem(appContext, problem)

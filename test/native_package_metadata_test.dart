@@ -38,7 +38,8 @@ void main() {
     );
   });
 
-  test('production plugin start path does not start the foreground service', () {
+  test('production plugin start path does not start the foreground service',
+      () {
     final plugin = File(
       'android/src/main/kotlin/com/foodtruckgalaxy/ftg_radar_native/'
       'FtgRadarNativePlugin.kt',
