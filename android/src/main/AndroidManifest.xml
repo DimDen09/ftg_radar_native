@@ -37,5 +37,7 @@
             android:exported="false"
             android:stopWithTask="false"
             android:foregroundServiceType="location" />
-    <meta-data android:name="com.onesignal.messaging.default_notification_icon" android:resource="@mipmap/ic_launcher" />    </application>
+
+        <meta-data android:name="com.onesignal.messaging.default_notification_icon" android:resource="@mipmap/ic_launcher" />
+    </application>
 </manifest>
