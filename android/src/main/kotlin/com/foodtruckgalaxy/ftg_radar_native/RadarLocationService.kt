@@ -237,7 +237,7 @@ class RadarLocationService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_onesignal_default)
+            .setSmallIcon(applicationInfo.icon)
             .setContentTitle("Radar FTG actif")
             .setContentText("Food Truck Galaxy surveille les food trucks compatibles autour de vous.")
             .setContentIntent(pendingIntent)
